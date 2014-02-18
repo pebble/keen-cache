@@ -1,0 +1,21 @@
+{
+  "name": "keen-proxy",
+  "version": "0.0.0",
+  "description": "A proxy to cache and limit authorized requests to Keen.io",
+  "main": "proxy.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pebble/keen-proxy"
+  },
+  "author": "sarfata",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pebble/keen-proxy/issues"
+  },
+  "dependencies": {
+    "express": "~3.4.8",
+    "logfmt": "~0.21.0",
+    "underscore": "~1.6.0",
+    "mongodb": "~1.3.23"
+  }
+}
