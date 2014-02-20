@@ -6,19 +6,22 @@ var querystring = require('querystring');
 var MongoClient = require('mongodb').MongoClient;
 var Keen = require('keen.io');
 
-var KEEN_SERVER = "http://api.keen.io";
-
 var config = {
   // URL of your MongoDB database
   mongoUri: process.env.MONGOLAB_URI || process.env.MONGOHQ_URL || 'mongodb://localhost/keen-cache',
 
+  // Keen Server you want to use (in-case you want to use chain proxies ;)
+  keen_server: process.env.KEEN_SERVER || "http://api.keen.io",
+
   // List of domains that will be "allowed" (if the browser respect CORS) to query this proxy
   allowedDomains: JSON.parse(process.env.ALLOWED_DOMAINS),
 
+  // Your Keen.io master key
+  masterKey: process.env.KEEN_MASTER_KEY,
+
   // A new "master key" that you generate for your proxy
   // > require('crypto').randomBytes(16).toString('hex');
-  publicKey: process.env.KEEN_PROXY_MASTER_KEY,
-  masterKey: process.env.KEEN_MASTER_KEY
+  publicKey: process.env.KEEN_PROXY_MASTER_KEY
 };
 
 
@@ -52,6 +55,40 @@ var allowCrossDomain = function(req, res, next) {
   }
 }
 
+// This end point takes a public request and adds an authorization key
+var enforceScopedKey = function(req, res, next) {
+  var publicScopedKey = req.query.api_key;
+
+  try {
+    var scopedParams = Keen.decryptScopedKey(config.publicKey, publicScopedKey);
+
+    // If we succesfully recognized the scope key, let's do some checks and then
+    // pass this on to Keen.io
+
+    // Prepare a new scoped key for Keen.io - We keep all the params in there, maybe
+    // some day soon Keen.io will support filtering on them too.
+    var privateScopedKey = Keen.encryptScopedKey(config.masterKey, scopedParams);
+    req.query.api_key = privateScopedKey;
+
+    // Overwrite the query parameters with the one set in the scopedKey
+    _.extend(req.query, scopedParams);
+
+    // If overwriting filters, rewrite them a-la-mode Keen.io
+    if (_.contains(scopedParams, 'filters')) {
+      req.query.filters = JSON.stringify(req.query.filters);
+    }
+
+    // Rewrite the URL with the new query parameters
+    req.url = req.path + '?' + querystring.stringify(req.query);
+
+    next();
+  }
+  catch (e) {
+    console.warn("Unable to decrypt scoped key. Rejecting request.");
+    res.send(403);
+  }
+}
+
 var cacheLookup = function(req, res, next) {
   mongoDb.collection('cache', function(er, collection) {
     // Get the most recent object from cache and serve it.
@@ -77,40 +114,8 @@ var cacheLookup = function(req, res, next) {
   });
 }
 
-// This end point takes a public request and adds an authorization key
-var authorizePublicRequest = function(req, res, next) {
-  var publicScopedKey = req.query.api_key;
-
-  try {
-    var scopedParams = Keen.decryptScopedKey(config.publicKey, publicScopedKey);
-
-    // If we succesfully recognized the scope key, let's do some checks and then
-    // pass this on to Keen.io
-
-    // Prepare a new scoped key for Keen.io - We keep all the params in there, maybe
-    // some day soon Keen.io will support filtering on them too.
-    var privateScopedKey = Keen.encryptScopedKey(config.masterKey, scopedParams);
-    req.query.api_key = privateScopedKey;
-
-    // Overwrite the query parameters with the one set in the scopedKey
-    _.extend(req.query, scopedParams);
-
-    // Rewrite the filters a-la-mode Keen.io
-    req.query.filters = JSON.stringify(req.query.filters);
-
-    // Rewrite the URL with the new query parameters
-    req.url = req.path + '?' + querystring.stringify(req.query);
-
-    next();
-  }
-  catch (e) {
-    console.warn("Unable to decrypt scoped key. Rejecting request.");
-    res.send(403);
-  }
-}
-
 var proxyRequest = function(req, res, next) {
-  var proxyRequest = http.get(KEEN_SERVER + req.url, function(proxyResponse) {
+  var proxyRequest = http.get(config.keen_server + req.url, function(proxyResponse) {
     res.statusCode = proxyResponse.statusCode;
 
     var response = "";
@@ -141,7 +146,7 @@ var proxyRequest = function(req, res, next) {
 app.configure(function() {
   app.use(logfmt.requestLogger());
   app.use(allowCrossDomain);
-  app.use(authorizePublicRequest);
+  app.use(enforceScopedKey);
   app.use(cacheLookup);
   app.use(proxyRequest);
 });
