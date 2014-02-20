@@ -50,19 +50,19 @@ var allowCrossDomain = function(req, res, next) {
       res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers']);
     }
     res.header('Access-Control-Max-Age', 60 * 60 /* * 24 * 365 */);
+
+    if (req.method == 'OPTIONS') {
+      res.send(200);
+    }
+    else {
+      next();
+    }
   }
   else {
     // Only allow cross-domain request. Requests that are coming from a non-authorized
     // domain or do not respect CORS are rejected.
     console.warn("Origin server not authorized: ", req.headers.origin);
     res.send(403);
-  }
-
-  if (req.method == 'OPTIONS') {
-    res.send(200);
-  }
-  else {
-    next();
   }
 }
 
