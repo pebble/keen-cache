@@ -138,15 +138,18 @@ var proxyRequest = function(req, res, next) {
       response += chunk;
     });
     proxyResponse.on('end', function() {
-      mongoDb.collection('cache', function(er, collection) {
-        // Remove the api_key from the url we save in cache because it changes for every request.
-        var uniqueUrl = req.url.replace(/api_key=.*?&/, '');
-        collection.insert({ 'request': uniqueUrl, 'response': response, 'cachedAt': new Date() }, {}, function (er, rs) {
-          if (er) {
-            console.error("Error inserting data in cache - er=", er, " rs=", rs);
-          }
+      // Only cache the response if the status is 200
+      if (proxyResponse.statusCode == 200) {
+        mongoDb.collection('cache', function(er, collection) {
+          // Remove the api_key from the url we save in cache because it changes for every request.
+          var uniqueUrl = req.url.replace(/api_key=.*?&/, '');
+          collection.insert({ 'request': uniqueUrl, 'response': response, 'cachedAt': new Date() }, {}, function (er, rs) {
+            if (er) {
+              console.error("Error inserting data in cache - er=", er, " rs=", rs);
+            }
+          });
         });
-      });
+      }
       res.send(response);
     });
   }).on('error', function(error) {
