@@ -5,6 +5,7 @@ var http = require('http');
 var querystring = require('querystring');
 var MongoClient = require('mongodb').MongoClient;
 var Keen = require('keen.io');
+var winston = require('winston');
 
 var config = {
   // URL of your MongoDB database
@@ -21,9 +22,19 @@ var config = {
 
   // A new "master key" that you generate for your proxy
   // > require('crypto').randomBytes(16).toString('hex');
-  publicKey: process.env.KEEN_PROXY_MASTER_KEY
+  publicKey: process.env.KEEN_PROXY_MASTER_KEY,
+
+  // Define the levels of log you want
+  // silly, verbose, info, http, warn, error, silent
+  logLevel: process.env.LOG_LEVEL || 'info'
 };
 
+
+var logger = new (winston.Logger)({
+  transports: [
+    new (winston.transports.Console)({ level: config.logLevel })
+  ]
+});
 
 var mongoDb;
 
@@ -115,6 +126,7 @@ var cacheLookup = function(req, res, next) {
 }
 
 var proxyRequest = function(req, res, next) {
+  logger.verbose("Sending request: %s", config.keen_server + req.url);
   var proxyRequest = http.get(config.keen_server + req.url, function(proxyResponse) {
     res.statusCode = proxyResponse.statusCode;
 
