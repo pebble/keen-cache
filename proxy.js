@@ -61,7 +61,7 @@ var allowCrossDomain = function(req, res, next) {
   else {
     // Only allow cross-domain request. Requests that are coming from a non-authorized
     // domain or do not respect CORS are rejected.
-    console.warn("Origin server not authorized: ", req.headers.origin);
+    logger.warn("Origin server not authorized: ", req.headers.origin);
     res.send(403);
   }
 }
@@ -72,6 +72,8 @@ var enforceScopedKey = function(req, res, next) {
 
   try {
     var scopedParams = Keen.decryptScopedKey(config.publicKey, publicScopedKey);
+
+    logger.verbose("Successfully decrypted scopedParams: %s for request: %s", JSON.stringify(scopedParams), req.url);
 
     // If we succesfully recognized the scope key, let's do some checks and then
     // pass this on to Keen.io
@@ -85,7 +87,7 @@ var enforceScopedKey = function(req, res, next) {
     _.extend(req.query, scopedParams);
 
     // If overwriting filters, rewrite them a-la-mode Keen.io
-    if (_.contains(scopedParams, 'filters')) {
+    if (_.has(scopedParams, 'filters')) {
       req.query.filters = JSON.stringify(req.query.filters);
     }
 
@@ -95,7 +97,7 @@ var enforceScopedKey = function(req, res, next) {
     next();
   }
   catch (e) {
-    console.warn("Unable to decrypt scoped key. Rejecting request.");
+    logger.warn("Unable to decrypt scoped key. Rejecting request.");
     res.send(403);
   }
 }
@@ -118,7 +120,7 @@ var cacheLookup = function(req, res, next) {
         }
       }
       else {
-        console.log("Error looking up item in cache: ", err);
+        logger.warn("Error looking up item in cache: ", err);
         next();
       }
     });
@@ -145,7 +147,7 @@ var proxyRequest = function(req, res, next) {
           var uniqueUrl = req.url.replace(/api_key=.*?&/, '');
           collection.insert({ 'request': uniqueUrl, 'response': response, 'cachedAt': new Date() }, {}, function (er, rs) {
             if (er) {
-              console.error("Error inserting data in cache - er=", er, " rs=", rs);
+              logger.warn("Error inserting data in cache - er=", er, " rs=", rs);
             }
           });
         });
@@ -176,11 +178,11 @@ MongoClient.connect(config.mongoUri, function(err, db) {
     // db.cache.dropIndexes() in the mongo console.
     collection.ensureIndex( { "cachedAt": 1 }, { expireAfterSeconds: 600 }, function(er, indexName) {
       if (er) {
-        console.error("Error creating index: ", er);
+        logger.error("Error creating index: ", er);
       }
     });
   });
   app.listen(port, function() {
-    console.log("Listening on port " + port);
+    logger.info("Listening on port " + port);
   });
 });
