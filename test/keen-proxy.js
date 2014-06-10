@@ -38,7 +38,7 @@ describe('KeenProxy', function () {
     done();
   });
 
-  before(function (done) {
+  beforeEach(function (done) {
     MongoClient.connect(config.mongoUri, function (err, db) {
       db.collection('cache', function (err, collection) {
         collection.drop(function(err, reply) {
@@ -229,6 +229,38 @@ describe('KeenProxy', function () {
       });
 
     });
+
+  });
+
+
+  describe('Caches requests', function (done) {
+
+    it('uses cache for second identical request', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var filters = [{
+        foo: 'bar'
+      }];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        filters: filters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        res.statusCode.should.equal(200);
+        var req1 = FakeKeen.getLastRequest();
+        req1.should.not.equal(undefined);
+        request({ url: url, headers: headers }, function (err, res, body) {
+          var req2 = FakeKeen.getLastRequest();
+          should(req2).equal(undefined);
+          done();
+        });
+
+      });
+
+    })
 
   });
 
