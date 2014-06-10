@@ -20,6 +20,9 @@ var config = {
   // Define the levels of log you want
   // silly, verbose, info, http, warn, error, silent
   logLevel: process.env.LOG_LEVEL || 'info'
+
+  // Toggle logging of incoming requests.
+  logRequests: true
 };
 
 var port = Number(process.env.PORT || 5000);
