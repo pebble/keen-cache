@@ -7,11 +7,14 @@ var MongoClient = require('mongodb').MongoClient;
 var KeenProxy = require('../lib/keen-proxy');
 var FakeKeen = require('./fake-keen');
 
+var PROXY_PORT = 5000;
+var FAKE_PORT = 5001;
+
 describe('KeenProxy', function () {
 
   var config = {
     mongoUri: 'mongodb://localhost/keen-cache-test',
-    keen_server: 'http://localhost:5001',
+    keen_server: 'http://localhost:' + FAKE_PORT,
     allowedDomains: [ 'http://localhost' ],
     masterKey: require('crypto').randomBytes(16).toString('hex'),
     publicKey: require('crypto').randomBytes(16).toString('hex'),
@@ -19,21 +22,19 @@ describe('KeenProxy', function () {
     logRequests: false
   };
 
-  var cacheBase = 'http://localhost:5000';
+  var cacheBase = 'http://localhost:' + PROXY_PORT;
 
   var keenProxy = null;
   var keenServer = null;
 
   before(function (done) {
     keenProxy = new KeenProxy(config);
-    keenProxy.run(5000);
-    setTimeout(function () {
-      done();
-    }, 1000);
+    keenProxy.run(PROXY_PORT);
+    done();
   });
 
   before(function (done) {
-    FakeKeen.start(5001);
+    FakeKeen.start(FAKE_PORT);
     done();
   });
 
@@ -162,6 +163,68 @@ describe('KeenProxy', function () {
         var filters = JSON.parse(req.query.filters);
         filters.should.eql(keyFilters);
         filters.should.not.eql(requestFilters);
+        done();
+      });
+
+    });
+
+    it('should prevent requests with an analysisType different to scoped key', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var filters = [{
+        foo: 'bar'
+      }];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        analysisType: 'SOMETHING',
+        filters: filters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING_ELSE?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        res.statusCode.should.equal(403);
+        done();
+      });
+
+    });
+
+    it('should allow requests with a matching analysisType', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var filters = [{
+        foo: 'bar'
+      }];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        analysisType: 'SOMETHING',
+        filters: filters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        res.statusCode.should.equal(200);
+        done();
+      });
+
+    });
+
+    it('should allow requests without an analysisType', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var filters = [{
+        foo: 'bar'
+      }];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        filters: filters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        res.statusCode.should.equal(200);
         done();
       });
 
