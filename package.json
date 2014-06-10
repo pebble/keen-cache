@@ -1,6 +1,6 @@
 {
   "name": "keen-proxy",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "A proxy to cache and limit authorized requests to Keen.io",
   "main": "proxy.js",
   "repository": {
