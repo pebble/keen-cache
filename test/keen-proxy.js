@@ -144,17 +144,35 @@ describe('KeenProxy', function () {
     it('should overwrite the request filters with those in the key', function (done) {
 
       var headers = { Origin: config.allowedDomains[0] };
-      var keyFilters = [{
-        foo: 'bar'
-      }];
-      var requestFilters = [{
-        bar: 'foo'
-      }];
+      var keyFilters = [
+        {
+          property_name: 'bar',
+          operator: 'eq',
+          property_value: 'foo'
+        },
+        {
+          property_name: 'baz',
+          operator: 'eq',
+          property_value: 'blah'
+        }
+      ];
+      var requestFilters = [
+        {
+          property_name: 'foo',
+          operator: 'eq',
+          property_value: 'bar'
+        },
+        {
+          property_name: 'baz',
+          operator: 'eq',
+          property_value: 'notblah'
+        }
+      ];
       var scopedKey = Keen.encryptScopedKey(config.publicKey, {
         allowed_operations: [ 'read' ],
         filters: keyFilters
       });
-      var qs = querystring.stringify({ api_key: scopedKey, filters: requestFilters });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(requestFilters) });
       var url = cacheBase + '/3.0/projects/PROJECT_ID/?' + qs;
 
       request({ url: url, headers: headers }, function (err, res, body) {
@@ -172,14 +190,16 @@ describe('KeenProxy', function () {
 
       var headers = { Origin: config.allowedDomains[0] };
       var filters = [{
-        foo: 'bar'
+        property_name: 'bar',
+        operator: 'eq',
+        property_value: 'foo'
       }];
       var scopedKey = Keen.encryptScopedKey(config.publicKey, {
         allowed_operations: [ 'read' ],
         analysisType: 'SOMETHING',
         filters: filters
       });
-      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(filters) });
       var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING_ELSE?' + qs;
 
       request({ url: url, headers: headers }, function (err, res, body) {
@@ -193,14 +213,16 @@ describe('KeenProxy', function () {
 
       var headers = { Origin: config.allowedDomains[0] };
       var filters = [{
-        foo: 'bar'
+        property_name: 'bar',
+        operator: 'eq',
+        property_value: 'foo'
       }];
       var scopedKey = Keen.encryptScopedKey(config.publicKey, {
         allowed_operations: [ 'read' ],
         analysisType: 'SOMETHING',
         filters: filters
       });
-      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(filters) });
       var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
 
       request({ url: url, headers: headers }, function (err, res, body) {
@@ -214,16 +236,135 @@ describe('KeenProxy', function () {
 
       var headers = { Origin: config.allowedDomains[0] };
       var filters = [{
-        foo: 'bar'
+        property_name: 'bar',
+        operator: 'eq',
+        property_value: 'foo'
       }];
       var scopedKey = Keen.encryptScopedKey(config.publicKey, {
         allowed_operations: [ 'read' ],
         filters: filters
       });
-      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(filters) });
       var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
 
       request({ url: url, headers: headers }, function (err, res, body) {
+        res.statusCode.should.equal(200);
+        done();
+      });
+
+    });
+
+    it('should allow requests with subset filters [eq]', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var keyFilters = [{
+        property_name: 'bar',
+        operator: 'in',
+        property_value: [ 'foo', 'buzz', 'blah' ]
+      }];
+      var requestFilters = [{
+        property_name: 'bar',
+        operator: 'eq',
+        property_value: 'foo'
+      }];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        filters: keyFilters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(requestFilters) });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        var req = FakeKeen.getLastRequest();
+        var filters = JSON.parse(req.query.filters);
+        filters.should.eql(requestFilters);
+        filters.should.not.eql(keyFilters);
+        res.statusCode.should.equal(200);
+        done();
+      });
+
+    });
+
+    it('should allow requests with subset filters [in]', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var keyFilters = [{
+        property_name: 'bar',
+        operator: 'in',
+        property_value: [ 'foo', 'buzz', 'blah' ]
+      }];
+      var requestFilters = [{
+        property_name: 'bar',
+        operator: 'in',
+        property_value: [ 'buzz', 'blah' ]
+      }];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        filters: keyFilters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(requestFilters) });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        var req = FakeKeen.getLastRequest();
+        var filters = JSON.parse(req.query.filters);
+        filters.should.eql(requestFilters);
+        filters.should.not.eql(keyFilters);
+        res.statusCode.should.equal(200);
+        done();
+      });
+
+    });
+
+    it('should overwrite the non subset filters', function (done) {
+
+      var headers = { Origin: config.allowedDomains[0] };
+      var keyFilters = [
+        {
+          property_name: 'bar',
+          operator: 'in',
+          property_value: [ 'foo', 'buzz', 'blah' ]
+        },
+        {
+          property_name: 'foo',
+          operator: 'eq',
+          property_value: 'woo'
+        }
+      ];
+      var requestFilters = [
+        {
+          property_name: 'bar',
+          operator: 'in',
+          property_value: [ 'buzz', 'blah' ]
+        },
+        {
+          property_name: 'foo',
+          operator: 'eq',
+          property_value: 'boo'
+        },
+        {
+          property_name: 'boo',
+          operator: 'eq',
+          property_value: 'foo'
+        }
+      ];
+      var finalFilters = [
+        requestFilters[0],
+        keyFilters[1],
+      ];
+      var scopedKey = Keen.encryptScopedKey(config.publicKey, {
+        allowed_operations: [ 'read' ],
+        filters: keyFilters
+      });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(requestFilters) });
+      var url = cacheBase + '/3.0/projects/PROJECT_ID/SOMETHING?' + qs;
+
+      request({ url: url, headers: headers }, function (err, res, body) {
+        var req = FakeKeen.getLastRequest();
+        var filters = JSON.parse(req.query.filters);
+        filters.should.eql(finalFilters);
+        filters.should.not.eql(keyFilters);
+        filters.should.not.eql(requestFilters);
         res.statusCode.should.equal(200);
         done();
       });
@@ -239,13 +380,15 @@ describe('KeenProxy', function () {
 
       var headers = { Origin: config.allowedDomains[0] };
       var filters = [{
-        foo: 'bar'
+        property_name: 'bar',
+        operator: 'eq',
+        property_value: 'foo'
       }];
       var scopedKey = Keen.encryptScopedKey(config.publicKey, {
         allowed_operations: [ 'read' ],
         filters: filters
       });
-      var qs = querystring.stringify({ api_key: scopedKey, filters: filters });
+      var qs = querystring.stringify({ api_key: scopedKey, filters: JSON.stringify(filters) });
       var url = cacheBase + '/3.0/projects/PROJECT_ID/?' + qs;
 
       request({ url: url, headers: headers }, function (err, res, body) {
