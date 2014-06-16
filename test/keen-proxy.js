@@ -403,7 +403,7 @@ describe('KeenProxy', function () {
 
       });
 
-    })
+    });
 
   });
 
